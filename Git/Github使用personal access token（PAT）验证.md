@@ -6,12 +6,11 @@ https://github.com/settings/tokens
 
 **2.在Git中缓存凭据**
 
-`#默认缓存15分钟
-
+```
+#默认缓存15分钟
 git config --global credential.helper cache
-
 #可以更改默认的密码缓存时限
-
-git config --global credential.helper 'cache --timeout=3600'`
+git config --global credential.helper 'cache --timeout=3600'
+```
 
 之后git push也不用输入PAT了。
