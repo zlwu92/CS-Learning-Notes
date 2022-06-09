@@ -1,0 +1,270 @@
+什么是OpenCL？
+- 面向异构系统通用目的并行编程的开放式、免费标准，也是一个统一的编程环境。
+什么是CUDA？
+- CUDA是一个基于Nvidia GPU的并行计算的架构。
+  CUDA最主要的包含两个方面：一个是ISA指令集架构；第二硬件计算引擎；实际上是硬件和指令集。
+OpenCL实际上是什么？
+- OpenCL实际上是针对异构系统进行并行编程的一个全新的API，OpenCL可以利用GPU进行一些并行计算的工作。
+- 从本质上来说，它是一个连接硬件和软件的API接口。 通过调用处理器和GPU的计算资源，释放硬件潜力，让程序运行得更快更好。
+CUDA实际上是什么？
+- CUDA是一套原生的，专门为计算接口而建造的这样的一个架构。CUDA架构可以支持API，包括OpenCL或者DirectX。
+CUDA 和 OpenCL的关系是什么？
+- OpenCL是一个API，在第一个级别，CUDA架构是更高一个级别，在这个架构上不管是OpenCL还是DX11这样的API，都可以支持
+- 基于C语言的CUDA被包装成一种容易编写的代码；OpenCL更加强调底层操作，因此难度较高，但正因为如此，OpenCL才能跨平台运行。
+
+CUDA 和 OpenCL的区别？（★★★★★）
+- OpenCL不支持CUDA那样的指针遍历方式, 只能用下标方式间接实现指针遍历
+- 在程序编译方面，CUDA是先编译设备上的代码，然后执行；而OpenCL是在运行时编译。
+  OpenCL启动核函数是通过运行时API调用的，而CUDA是直接通过函数名<<<dimGrid,dimBlock>>>启动的。
+- Kernel 程序异同：CUDA的代码最终编译成显卡上的二进制格式.cubin，最后由cudart.dll装载到GPU并且执行。
+  OpenCL中运行时库中包含编译器，使用伪代码，程序运行时即时编译和装载。道理也一样，为了支持跨平台的兼容。
+- 初始化部分的异同：CUDA 在使用任何API之前必须调用cuInit(0)，然后是获得当前系统的可用设备并获得Context。
+  OpenCL不用全局的初始化，直接指定设备获得句柄就可以了。
+- CUDA kernel 以二进制格式存放与CUBIN文件中间，其调用格式和DLL的用法比较类似，
+  先装载二进制库，然后通过函数名查找函数地址，最后用将函数装载到GPU运行。
+  OpenCL 为了支持多平台，所以不使用编译后的代码，采用类似JAVA的方式，装载文本格式的代码文件，然后即时编译并运行。
+- 设备内存分配：OpenCL提供两组特殊的标志，CL_MEM_READ_ONLY  和 CL_MEM_WRITE_ONLY 用来控制内存的读写权限。
+  另外一个标志比较有用：CL_MEM_COPY_HOST_PTR 表示这个内存在主机分配，但是GPU可以使用，
+  运行时会自动将主机内存内容拷贝到GPU，主机内存分配，设备内存分配，主机拷贝数据到设备，3个步骤一气呵成。  
+- N-DRange（网格）配置有所不同：CUDA是在函数调用时夹在<<<和>>>之间的参数配置的；
+  OpenCL是用调用clEnqueueNDRangeKernel函数时配置的。
+- CUDA程序必须针对特定的硬件 预先编译 运行在通用CPU中的程序和运行在GPU中的程序；
+  OpenCL的编译过程只编译CPU程序，GPU程序以C源代码的方式保存，在实际运行前由所在的OpenCL环境针对该环境的硬件 即时编译，
+  因此一个OpenCL二进制程序可以运行在不同的GPU或CPU上而无须重新编译。缺点是你无法保护你的源代码。	
+
+两种模型的实施步骤：
+CUDA
+- 在device (也就是GPU) 上申请内存// declare GPU memory pointers
+- 将host (也就是CPU) 上的数据拷贝到device
+- 执行CUDA kernel function
+- 将device上的计算结果传回host
+- 释放device上的内存
+OpenCL
+- 检测申请计算资源
+	- 检测platform
+	- 检测platform对应的device
+	- 建立context
+	- 建立command queue
+	- 在context内申请存储空间
+- 将host (也就是CPU) 上的数据拷贝到device
+- OpenCL代码编译
+	- 读入OpenCL （kernel function） 源代码
+	- 编译创立program 句柄
+	- 创立一个 OpenCL kernel 句柄
+	- 申明设置 kernel 的 参数
+	- 设置NDRange
+- 运行kernel 
+- 将device上的计算结果传回host
+- 释放计算资源
+	- 释放kernel
+	- 释放program
+	- 释放device memory
+	- 释放command queue
+	- 释放context
+
+/////////////////////////////////////////////////////////////////////////////////
+
+1、GPU：CPU的协处理器（通过PCle总线协同工作）
+特点： 
+1）多ALU核，并行处理计算，
+2）线程较轻，数量多，实现大规模的并发
+3）少量Cache （利用逻辑控制思维替代了缓存单元，ps CPU中需要很多的逻辑缓存区，存储临时数据）
+   作用： 不是为了存储临时数据，而是提高线程访问效率从而进行访问节点的合并，存储其访问的指针（指向dram）
+
+sp:最基本的处理单元，streaming processor 最后具体的指令和任务都是在sp上处理的。GPU进行并行计算，也就是很多个sp同时做处理
+sm:多个sp加上其他的一些资源组成一个sm, streaming multiprocessor. 其他资源也就是存储资源，共享内存，寄储器等。
+warp:GPU执行程序时的调度单位，目前cuda的warp的大小为32，同在一个warp的线程，以不同数据资源执行相同的指令。
+grid、block、thread：在利用cuda进行编程时，一个grid分为多个block，而一个block分为多个thread，
+其中任务划分到是否影响最后的执行效果。划分的依据是任务特性和GPU本身的硬件特性。
+
+
+CUDA分为三层（函数库，运行API,驱动API）
+线程的threadID=threadIdx.x+threadIdx.y*blockDim.x。
+__global__，表明被修饰的函数在设备上执行，但在主机上调用。
+__device__，表明被修饰的函数在设备上执行，但只能在其他__device__函数或者__global__函数中调用
+
+CUDA 块间同步通信
+1. 使用 __threadfence() (__threadfence_block()用在同一个block内的不同warp内)
+2. 基于锁的块间同步--使用一个全局互斥量变量来计算到达同步点的线程块的数量
+   在 barrier 函数 __gpu_sync() 中，在一个块完成它的计算之后，它的一个线程 (这里是 0 号线程，我们称之为主导线程) 将自动地向 g_mutex 通过原子函数 atomicAdd()添加1。然后，主导线程将重复比较 g_mutex 和一个目标值 goalVal 。如果 g_mutex 等于 goalVal，那么同步就完成了，每个线程块都可以进行下一阶段的计算。在该设计中，当第一次调用 barrier 函数时，将 goalVal 设置为内核中的块数 N 。然后，当连续调用 barrier 函数时，goalVal的值每次递增 N 。这种设计比保持 goalVal 常量并在每个 barrier 之后重新设置 g_mutex 更有效，因为前者节省了指令的数量并避免了条件分支 。
+
+// lock-based
+__device__ volatile int g_mutex;
+ 
+// GPU lock-based synchronization function
+__device__ void __gpu_sync(int goalVal)
+{
+  // thread ID in a block
+  int tid_in_block = threadIdx.x * blockDim.y + threadIdx.y;
+ 
+  // only thread 0 is used for synchronization
+  if (tid_in_block == 0)
+  {
+    atomicAdd((int*) &g_mutex, 1);
+ 
+    // only when all blocks add 1 go g_mutex
+    // will g_mutex equal to goalVal
+    while (g_mutex != goalVal)
+    {
+      // Do nothing here
+    }
+  }
+  __syncthreads();
+}
+
+3. 无锁的块间同步--为每个线程块分配一个同步变量，这样每个块就可以独立地记录其同步状态，而不必争用单个全局互斥锁变量。
+   使用两个数组 Arrayin 和 Arrayout 来协调来自不同块的同步请求。在这两个数组中，每个元素都映射到内核中的一个线程块，即，将元素 i 映射到线程块 i ，算法大致分为三个步骤:
+   1）当 block i 准备好通信时，它的主导线程 (线程0) 将 Arrayin 中的元素 i 设置为目标值 goalVal。block i 中的主导线程然后忙等 Arrayout 的元素 i 被设置为 goalVal 。
+   2）block 1中的前 N 个线程重复检查 Arrayin 中的所有元素是否等于 goalVal ，线程 i 检查 Arrayin 中的第 i 个元素。将Arrayin 中的所有元素设置为 goalVal 后，每个检查线程将 Arrayout 中的相应元素设置为 goalVal 。注意，在更新 Arrayout的元素之前，每个检查线程都会调用块内 barrier 函数 __syncthreads()。
+   3）当 block 的主导线程看到 Arrayout 中的对应元素被设置为 goalVal 时，该 block 将继续执行。
+
+// lock-free
+__device__ void __gpu_sync(int goalVal, volatile int *Arrayin, volatile int *Arrayout)
+{
+  // thread ID in a block
+  int tid_in_blk = threadIdx.x * blockDim.y + threadIdx.y;
+  int nBlockNum = gridDim.x * gridDim.y;
+  int bid = blockIdx.x * gridDim.y + blockIdx.y;
+ 
+  // only thread 0 is used for synchonization
+  if (tid_in_blk == 0)
+  {
+    Arrayin[bid] = goalVal;
+  }
+ 
+  if (bid == 1)
+  {
+    if (tid_in_blk < nBlockNum)
+    {
+      while (Arrayin[tid_in_blk] != goalVal)
+      {
+        // Do nothing here
+      }
+    }
+ 
+    __syncthreads();
+ 
+    if (tid_in_blk < nBlockNum)
+    {
+      Arrayout[tid_in_blk] = goalVal;
+    }
+  }
+ 
+  if (tid_in_blk = 0)
+  {
+    while (Arrayout[bid] != goalVal)
+    {
+      // Do nothing here
+    }
+  }
+ 
+  __syncthreads();
+}
+从以上代码可以看出，CUDA 无锁同步中没有原子操作。所有的操作都可以并行执行。不同线程块的同步由单个块 (block 1) 中的 N 个线程来控制，可以通过调用块内 barrier 函数 __syncthreads() 来有效地同步。
+__threadfence() 
+最后，值得注意的是，另外一种保证 CUDA 块间同步通信的正确性的办法是使用 __threadfence() （CUDA 2.2中引入了一个新的函数 ）。这个函数将阻塞调用线程，直到之前对 全局内存 或 共享内存 的写入对其他线程可见为止。但是使用 __threadfence() 也会引起一定的额外开销，所以需要进行实际测试和权衡。
+
+/////////////////////////////////////////////////////////////////////////////////////////////////
+流同步：通过cudaStreamSynchronize()来协调。
+1. cuda为什么需要stream流式操作？
+在Stream的帮助下，CUDA程序可以有效地将内存读取和数值运算并行，从而提升数据的吞吐量。
+CUDA程序一般会有一下三个步骤：
+1）将数据从CPU内存转移到GPU内存，
+2）GPU进行运算并将结果保存在GPU内存，
+3）将结果从GPU内存拷贝到CPU内存。
+如果不做特别处理，那么CUDA会默认只使用一个Stream（Default Stream）。
+在这种情况下，刚刚提到的三个步骤就如菊花链般蛋疼地串联，必须等一步完成了才能进行下一步
+
+NVIDIA家的GPU有一下很不错的技能：
+数据拷贝和数值计算可以同时进行。
+两个方向的拷贝可以同时进行（GPU到CPU，和CPU到GPU），数据如同行驶在双向快车道
+
+Stream正是帮助我们实现以上两个并行的重要工具：
+1. 将数据拆分称许多块，每一块交给一个Stream来处理。
+2. 每一个Stream包含了三个步骤：
+   1）将属于该Stream的数据从CPU内存转移到GPU内存，
+   2）GPU进行运算并将结果保存在GPU内存，
+   3）将该Stream的结果从GPU内存拷贝到CPU内存。
+3. 所有的Stream被同时启动，由GPU的scheduler决定如何并行。
+
+总结：
+使用多个Stream令 数据传输 和 计算 并行，可比只用Default Stream增加相当多的吞吐量。
+在需要处理海量数据，Stream是一个十分重要的工具。
+
+
+2. CUDA-寄存器使用
+CPU与GPU架构的一个主要区别就是CPU与GPU映射寄存器的方式
+GPU利用多线程隐藏了内存获取与指令执行带来的延迟，
+GPU不使用寄存器重命名机制，而是致力于为每一个线程都分配真实的寄存器
+当需要上下文切换时，所需要的操作就是将指向当前寄存器组的选择器（或指针）更新，
+以指向下一个执行的线程束的寄存器组，因此几乎是 零开销！
+
+编译时会计算出每个内核线程需要的寄存器数目
+
+总之，在编写GPU程序是，为了充分发挥硬件性能和程序速度，
+应考虑好寄存器数，线程数，SM调度的线程块数等的关系。同时最大化地利用寄存器。
+
+
+3. 占用率(occupancy):
+在SM上实际激活warp数量与理论最大激活warp数量之比。
+低占用率无法隐藏延时，高占用率使得每个线程计算任务少
+占用率一般受三个条件的限制：
+1.SM最大并发线程数，SM最大并发Warp数，SM最大并发块数
+2.共享内存资源限制
+3.寄存器资源限制
+
+
+4. 本地内存和与寄存器
+Local memory和寄存器类似，也是线程私有的，是片外内存，其读写的代价和全局变量一样高
+在优化程序的时候可以考虑减少block的线程数量以使每个线程有更多的寄存器可使用，这样可减少Local memory的使用，从而加快运行速度。
+寄存器和本地内存不像共享内存、设备内存、常量内存和纹理内存显式声明
+寄存器和本地内存共同定义了核函数中所有静态变量
+寄存器影响占用率，本地内存影响内存访问速度。
+
+当局部变量或中间数据不多时，尽量使用片上的寄存器资源。
+当局部变量或中间数据较多时，仍使用寄存器资源，
+但要使用一定的策略：可使用片上的共享内存作为中间数据的临时储存区域，减小寄存器的使用。
+
+如果shared Memory的大小在编译器未知的话，可以使用extern关键字修饰
+由于其大小在编译器未知，我们需要在每个kernel调用时，动态的分配其shared memory，也就是最开始提及的第三个参数：
+kernel<<<grid, block, isize * sizeof(int)>>>(...)
+
+什么是cuda的合并访存？
+- 合并访问是指所有线程访问连续的对齐的内存块！
+- 对于L1 cache，内存块大小支持32字节、64字节以及128字节，
+  分别表示线程束中每个线程以一个字节（1*32=32）、2个字节16位（2*32=64）、4个字节32位（4*32=128）为单位读取数据
+- 假设每个thread读取一个float变量，那么一个warp（32个thread）将会执行32*4=128字节的合并访存指令，
+  通过一次访存操作完成所有thread的读取请求。提高吞吐量（cache的带宽利用率）
+- 采取了连续的内存存取模式，尽量减少latency
+- 所谓的 coalesced，是表示除了连续之外，而且它开始的地址，必须是每个 thread 所存取的大小的 16 倍。
+  例如，如果每个 thread都读取 32 bits的数据，那么第一个 thread 读取的地址，必须是 16*4 = 64 bytes 的倍数。
+- 每个 thread 一次读取的内存数据量，可以是 32 bits、64 bits、或 128 bits。
+
+注意！
+一个warp包含32个threads。warp是调度和执行的基本单位，
+half-warp是存储器操作的基本单位，这两个非常重要。
+在分支的时候，warp大显身手，有合并访问和bank conflict的时候half-warp当仁不让。
+每个bank的带宽为32bit = 4byte= 4 char = 1 int = 1float；
+只要half-warp中的线程访问的数据在同一个段中，就可以满足合并访问条件。
+
+
+什么是IO密集型和计算密集型呢？
+- 计算密集型任务的特点是要进行大量的计算，消耗CPU资源，比如计算圆周率、对视频进行高清解码等等，全靠CPU的运算能力。
+- 第二种任务的类型是IO密集型，涉及到网络、磁盘IO的任务都是IO密集型任务，这类任务的特点是CPU消耗很少，任务的大部分时间都在等待IO操作完成
+
+如何判定程序属于计算密集还是访存密集？
+- 算出机器的单核峰值性能，主频*SIMD宽度*2（如果存在乘加指令），CpuPeak
+- 测出机器峰值带宽，用streaming测出实际带宽峰值，但是该峰值是所有处理器核的总和，需要除以实际物理核数，算出峰值带宽，MemPeak
+- 分析算法的计算访存比，if CpuPeak/MemPeak > Flop/Byptes，then 访存密集，else 计算密集
+FLOAS = 核数*单核主频*CPU单个周期浮点计算值。
+GFLOPS 就是 Giga Floating-point Operations Per Second，即每秒10亿次的浮点运算数。
+
+RoofLine算法
+所谓“Roof-line”，指的就是由计算平台的算力和带宽上限这两个参数所决定的“屋顶”形态，如下图所示。
+算力决定“屋顶”的高度（绿色线段）
+带宽决定“房檐”的斜率（红色线段）
+Roof-line Model 说的是很简单的一件事：模型在一个计算平台的限制下，到底能达到多快的浮点计算速度。
+
+amdal‘s law说的是改进部分性能对整体加速比的影响。
+
+
